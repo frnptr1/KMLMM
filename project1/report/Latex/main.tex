@@ -1,0 +1,197 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx,wrapfig,lipsum}
+\usepackage{caption,subcaption}
+\usepackage[a4paper]{geometry}
+\usepackage{amsfonts}
+\usepackage{fancyhdr}
+\usepackage{amsmath}
+\usepackage{graphics}
+\usepackage{verbatim}
+\usepackage{hyperref}
+\usepackage[table,xcdraw]{xcolor}
+\usepackage[normalem]{ulem}
+\usepackage{float}
+\useunder{\uline}{\ul}{}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+}
+ 
+\urlstyle{same}
+
+%\title{Report kmlmm}
+%\author{Pietro Fronte}
+%\author{david}
+%\date{December 2018}
+
+\pagestyle{fancy}
+\lhead{Pietro Fronte}
+\chead{David Manubens}
+\rhead{Asaf Badouh}
+\cfoot{Page \thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+\title{Half-term Project - Kernel Methods\\Image classification}
+
+\author{Pietro Fronte \\ David Manubens\\Asaf Badouh }
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\section{Abstract}
+\input{Abstract.tex}
+
+\section{Introduction}
+\input{Introduction.tex}
+
+\section{Previous Work}
+\input{PreviousWork.tex}
+
+\section{Theory}\label{section:theory}
+
+ 
+The theory behind the work we did can be divided into 2 macro categories: 
+Preprocessing: from a .png image to a vector containing numerical features of the image
+Modelling : from vector of numerical features to the final prediction
+
+\subsection{Preprocessing}    
+
+Once loaded the images in workspace, they appear as a 3D matrix: 2 dimensions for the height and width of the image (the length of these 2 components vary depending on the dimensions in pixels of the image) and the third dimension is a fixed vector of 3 components storing the RGB components of each pixel. \newline
+
+From this structure we want to extract the so-called \textit{feature descriptor}, or in other words a numerical representation of the same image by extracting useful information from it. Generally a feature descriptor can belongs to two different macro categories:
+\begin{itemize}
+    \item \textbf{Global feature descriptor}: retrieve useful information from the entire object(image). Contour representations, shape descriptors and texture features belong to Global features descriptors. HOG (histogram of gradients ) and Shape Matrices are examples of algorithm that belong to this category.
+    \item \textbf{Local feature descriptor}: it doesn't focus on the whole image but try to describe patches (key points in the image) of an object. SIFT(Scale-invariant feature transform) and SURF (Speeded Up Robust Feature) are examples of algorithm that belong to local descriptors category.
+\end{itemize}
+
+For our task (Multi-class Classification of images) we chose to adopt the Histogram of Gradient as feature descriptor of our images.
+
+\subsubsection {The idea behind the Histogram of Gradients}
+
+When we see an image, from a human point of view, we are able to distinguish different objects in the same image mainly because of their shapes, their color or their position in the image, and thanks to our experience (we touched it, we saw it, we were in that place and so on..) we are also able recognize them. Computers, in this case, have no experience with real life and no eyes to see images. To let them “see” the image and help them recognize objects we try to, as said before, highlight the different shapes that characterize a particular object and make it different from the others. This is what actually Histogram of gradient does.
+
+The basic idea is that a local object presence and shape is well approximated by the local distribution of gradient intensity and direction. This is because gradients magnitude is large around edges and corners (regions of intensity changes) so thanks to that we are able to highlight shapes of object. 
+\subsubsection{ HOG Evaluation}
+\begin{minipage}{0.5\textwidth}
+To evaluate the Histogram of Gradient we evaluate first the derivatives with respect to X and Y axis - process achieved by filtering the image with the following kernels (Figure [\ref{xy_filters}]). Once evaluated the two components we can build the magnitude of the gradient (Equation[\ref{eq:gradient}]) and the direction(Equation[\ref{eq:direction}]) of the same.
+\begin{equation}\label{eq:gradient}
+G = \sqrt{(g_x^2 + g_y^2)}
+\end{equation}
+\begin{equation}\label{eq:direction}
+\theta = \arctan \frac{g_y}{g_x}
+\end{equation}
+With $g_x$ and $g_y$ the first derivatives with respect to x and y axis.
+\end{minipage}
+\begin{minipage}{0.5\textwidth}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{Images/gradient-kernels.jpg}
+    \caption{X, Y Filters.}
+    \label{xy_filters}
+\end{figure}
+\end{minipage}
+
+Once we know how to evaluate the gradient we need to understand where to evaluate it. 
+We split first the current image into a number of squared cells, each cell is composed by a $n\times n$ pixels. Remember that each pixel contains also the RGB components so at the end each cell end up having $n\times n \times 3$ values!
+
+On each of these squared cell we are going to evaluate the histogram of gradients. So from 1 cell we will get $n\times n \times 2$ (direction and magnitude) values that we will redistribute in an histogram with h number of bins.
+
+% fix image dimensions %
+\begin{figure}[H]
+\centering
+\includegraphics[width = 0.9\linewidth]{Images/hog-cell-gradients.png}
+\caption{Example HOG in Cell}
+\end{figure}
+
+% fix image dimensions %
+\begin{figure}[H]
+\centering
+\includegraphics[width = 0.8\linewidth]{Images/hog-histogram-1.png}
+\caption{Example HOG in Cell}
+\end{figure}
+
+% fix image dimensions %
+\begin{figure}[H]
+\centering
+\includegraphics[width = 0.8\linewidth]{Images/hog-histogram-2.png}
+\caption{Example HOG in Cell}
+\end{figure}
+
+
+
+For this reason, what comes out from HOG evaluated in a cell is just a vector of length h (number of bins). Concatenating each of this vectors of length h coming out from each cell we will get the feature descriptor vector based on Histogram of Gradients. If we split and image into m cells then we will end up having a descriptor of length $m\cdot h$.
+
+\subsection{Modelling} 
+
+Once built the feature descriptor vector we are ready to start the modelling part. 
+The idea is to use a kernelized version of Support Vector Machine to carry our multi-class classification task.
+SVM is one of the most used Machine Learning algorithm in classification task. 
+\begin{itemize}
+    \item Given a dataset D = \{($x_1$,$t_1$), ... , ($x_n$,$t_n$)\} with $x_i$ $\epsilon$ ${\rm I\!R}^d$ and $t_i \epsilon \{ -1; +1\}$ \\
+    \item Given a separating hyperplane f(x) = $w^Tx$ = b with w = \{$w_1$,...$w_n$\} and b variable \\
+    \item Given the support vectors of the hyperplane 
+    \begin{itemize} 
+    \item SV1: $w^Tx$ = b+1 \\ 
+    \item SV2: $w^Tx$ = b-1
+    \end{itemize}
+    and the distance between them $\frac{2}{||w||}$
+    \item Given a set of slack variable $\varepsilon_i$ with $\varepsilon$ = \{$\varepsilon_1$, ... , $\varepsilon_n$\} and a parameter C 
+\end{itemize}
+
+Then the primal SVM formulation is:
+\[
+min_{w,b} f(x) = \frac{1}{2} w^Tw + C \sum_{i=1}^n \varepsilon_i \\
+\text{subject to: } t_i(w^Tx-b)+\varepsilon_i \geq 1
+\]
+
+However this does not allow us to introduce any kernel. For this reason we need to move to the dual version of SVM problem first to see appear an inner product of the variable matrix x.
+
+\begin{itemize}
+    \item Given a set of variable $\alpha$ = \{ $\alpha_1$, ..., $\alpha_n$ \} \\
+    \item Given a dataset D = \{($x_1$,$t_1$), ... , ($x_n$,$t_n$)\} with $x_i$ $\epsilon$ ${\rm I\!R}^d$ and $t_i \epsilon \{ -1; +1\}$
+\end{itemize}
+
+The dual version of a SVM problem is:
+
+\begin{equation}\label{eq:min}
+\begin{split}
+min_\alpha f(x) =& \sum_{i=1}^n \alpha_i -\frac{1}{2} \sum_{i=1}^n \sum_{j=1}^n \alpha_i \alpha_j t_i t_j \langle x_i,x_j\rangle  \\\\[-1em]
+\text{subject to: }& 0 \leq \alpha_i \leq C \quad 1\leq  i\leq n \\\\[-1em] 
+&\sum_{i=1}^n \alpha_i t_i = 0
+\end{split}
+\end{equation}
+
+In this way we are now able to substitute the inner product with a kernel function. Why use a kernel function inside and exploit the kernel trick?
+This is because our points may be (almost surely) non linearly separable. Thus a reasonable way out is to increase the space dimension through a mapping function $\phi$ such that $\phi$ : ${\rm I\!R}^d \longrightarrow {\rm I\!R}^z $ with d $\leq$ z, and in the new dimension being able to classify them with a linear classifier (hyperplane).
+
+\subsubsection{Kernels}
+What is a kernel and why we use it? \\
+K(x,x') = $\langle \phi(x), \phi(x) \rangle$
+Through the kernel matrix we can now introduce inside the problem information about dissimilarity measure between data points in order to have a better classification.
+
+
+\begin{itemize}
+    \item Polynomial kernel : K(x,x') = $\langle \phi(x), \phi(x) \rangle^y$ 
+    \item RBF kernel : K(x,x') = exp(-$\gamma||x_i - x_j||^2$) $\text{ with } \gamma=\frac{1}{2\sigma^2}$
+\end{itemize}
+
+
+\section{Experiments}
+\input{Experiments.tex}
+
+\section{Conclusions}
+\input{Conclusions.tex}
+
+\section{Future Work}
+\input{FeatureWork.tex}
+
+\newpage
+\nocite{*}
+\bibliographystyle{unsrt}
+\bibliography{references}
+\end{document}
